@@ -155,7 +155,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-se
 
 <script>
 /* ── PHONE GATE ─────────────────────────────────────────────── */
-const BOT_URL = 'https://mastercode-whatsapp-agent.onrender.com';
+const BOT_URL = 'https://mastercode-whatsapp-agent--przyyryair.replit.app';
 
 async function verifyPhone(p) {
   const r = await fetch(`${BOT_URL}/movies-check?phone=${encodeURIComponent(p)}`);
@@ -191,12 +191,8 @@ async function checkAccess() {
   document.getElementById('gatePhone').focus();
   const saved = localStorage.getItem('streamil_phone');
   if (!saved) return;
-  const msg = document.getElementById('gateMsg');
-  msg.textContent = 'מאמת כניסה... ⏳';
-  try {
-    if (await verifyPhone(saved)) document.getElementById('gate').classList.add('hidden');
-    else { localStorage.removeItem('streamil_phone'); msg.textContent = ''; }
-  } catch (e) { msg.textContent = ''; }
+  // כבר מחובר — כניסה ישירה ללא בדיקה מחדש
+  document.getElementById('gate').classList.add('hidden');
 })();
 
 document.getElementById('gatePhone').addEventListener('keydown', e => { if (e.key === 'Enter') checkAccess(); });
