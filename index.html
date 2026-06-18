@@ -146,11 +146,11 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-se
         <!-- Overlay controls - always on top -->
         <div id="overlayBtns" style="display:none;position:absolute;top:10px;left:10px;z-index:10;display:flex;gap:6px">
           <button onclick="goFullscreen()" title="מסך מלא" style="background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:.8rem;backdrop-filter:blur(4px)">⛶ מסך מלא</button>
+          <button id="subBtn" onclick="loadSubtitles()" style="display:none;background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:.8rem;backdrop-filter:blur(4px)">💬 כתוביות</button>
         </div>
       </div>
       <div class="player-toolbar">
         <div id="srcBtns" style="display:flex;gap:6px;align-items:center;flex:1;flex-wrap:wrap"></div>
-        <button id="subBtn" onclick="loadSubtitles()" style="background:#1e1e1e;border:1px solid #333;color:#ccc;border-radius:6px;padding:5px 14px;font-size:.8rem;cursor:pointer;display:none">💬 כתוביות עברית</button>
       </div>
 
       <!-- Subtitle bar -->
