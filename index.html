@@ -4,10 +4,6 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>StreamIL</title>
-<link rel="manifest" href="manifest.json"/>
-<meta name="theme-color" content="#e50914"/>
-<link rel="apple-touch-icon" href="icons/icon-192.png"/>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--red:#e50914;--bg:#0a0a0a;--card:#141414;--text:#fff;--muted:#999}
@@ -154,6 +150,21 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-se
       </div>
       <div class="player-toolbar">
         <div id="srcBtns" style="display:flex;gap:6px;align-items:center;flex:1;flex-wrap:wrap"></div>
+        <button id="subBtn" onclick="loadSubtitles()" style="background:#1e1e1e;border:1px solid #333;color:#ccc;border-radius:6px;padding:5px 14px;font-size:.8rem;cursor:pointer;display:none">💬 כתוביות עברית</button>
+      </div>
+
+      <!-- Subtitle bar -->
+      <div id="subBar" style="display:none;background:#0d0d0d;border-top:1px solid #222;padding:10px 16px">
+        <div id="subText" style="color:#fff;text-align:center;font-size:1.05rem;min-height:26px;line-height:1.5;text-shadow:1px 1px 3px #000"></div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap">
+          <button onclick="subOffset(-1000)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:4px 10px;font-size:.75rem;cursor:pointer">◀◀ -1s</button>
+          <button onclick="subOffset(-200)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:4px 10px;font-size:.75rem;cursor:pointer">◀ -0.2s</button>
+          <button id="syncBtn" onclick="startSubSync()" style="background:#e50914;border:none;color:#fff;border-radius:6px;padding:4px 14px;font-size:.8rem;cursor:pointer;font-weight:700">▶ סנכרן כשהסרט מתחיל</button>
+          <button onclick="subOffset(200)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:4px 10px;font-size:.75rem;cursor:pointer">+0.2s ▶</button>
+          <button onclick="subOffset(1000)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:4px 10px;font-size:.75rem;cursor:pointer">+1s ▶▶</button>
+          <button onclick="stopSubs()" style="background:#333;border:none;color:#aaa;border-radius:6px;padding:4px 10px;font-size:.75rem;cursor:pointer">✕ סגור</button>
+        </div>
+        <div id="subStatus" style="color:#666;text-align:center;font-size:.75rem;margin-top:6px"></div>
       </div>
     </div>
 
@@ -352,6 +363,77 @@ function loadFrame(url, sources) {
   document.getElementById('waiting').style.display = 'none';
   document.getElementById('overlayBtns').style.display = 'flex';
   if (sources) renderSrcBtns(sources, url);
+  stopSubs();
+  document.getElementById('subBtn').style.display = 'flex';
+}
+
+/* ── SUBTITLES ──────────────────────────────────────────────── */
+let subEntries = [], subStart = null, subDrift = 0, subTimer = null;
+
+function parseSRT(txt) {
+  const entries = [];
+  const blocks = txt.replace(/\r/g,'').trim().split(/\n\s*\n/);
+  for (const b of blocks) {
+    const lines = b.trim().split('\n');
+    if (lines.length < 3) continue;
+    const m = lines[1].match(/(\d+):(\d+):(\d+)[,.](\d+)\s*-->\s*(\d+):(\d+):(\d+)[,.](\d+)/);
+    if (!m) continue;
+    const t = (h,mn,s,ms) => +h*3600000 + +mn*60000 + +s*1000 + +ms;
+    entries.push({ start: t(m[1],m[2],m[3],m[4]), end: t(m[5],m[6],m[7],m[8]), text: lines.slice(2).join('\n').replace(/<[^>]+>/g,'') });
+  }
+  return entries;
+}
+
+async function loadSubtitles() {
+  if (!cur) return;
+  const btn = document.getElementById('subBtn');
+  btn.disabled = true; btn.textContent = '⏳ טוען...';
+  document.getElementById('subStatus').textContent = '';
+  const type = cur.type === 'tv' ? 'tv' : 'movie';
+  const season = document.getElementById('sSeason')?.value || 1;
+  const ep = document.getElementById('sEp')?.value || 1;
+  let url = `${BOT_URL}/subtitles?tmdb_id=${cur.id}&type=${type}`;
+  if (type === 'tv') url += `&season=${season}&ep=${ep}`;
+  try {
+    const r = await fetch(url);
+    const text = await r.text();
+    let parsed;
+    try { parsed = JSON.parse(text); } catch(e) { parsed = null; }
+    if (parsed?.error) throw new Error(parsed.error);
+    subEntries = parseSRT(text);
+    if (!subEntries.length) throw new Error('לא ניתן לפרסר כתוביות');
+    document.getElementById('subBar').style.display = 'block';
+    document.getElementById('subStatus').textContent = `נטענו ${subEntries.length} כתוביות — לחץ סנכרן כשהסרט מתחיל`;
+    btn.textContent = '✅ כתוביות טעונות';
+  } catch(e) {
+    document.getElementById('subStatus').textContent = '❌ ' + e.message;
+    btn.textContent = '💬 כתוביות עברית';
+  }
+  btn.disabled = false;
+}
+
+function startSubSync() {
+  subStart = Date.now();
+  subDrift = 0;
+  if (subTimer) clearInterval(subTimer);
+  subTimer = setInterval(() => {
+    const elapsed = Date.now() - subStart + subDrift;
+    const entry = subEntries.find(e => elapsed >= e.start && elapsed <= e.end);
+    document.getElementById('subText').innerHTML = entry ? entry.text.replace(/\n/g,'<br>') : '';
+  }, 100);
+  document.getElementById('syncBtn').textContent = '🔄 מסונכרן';
+  document.getElementById('subStatus').textContent = 'כתוביות פועלות';
+}
+
+function subOffset(ms) { subDrift += ms; }
+
+function stopSubs() {
+  if (subTimer) { clearInterval(subTimer); subTimer = null; }
+  subEntries = []; subStart = null; subDrift = 0;
+  document.getElementById('subBar').style.display = 'none';
+  document.getElementById('subText').textContent = '';
+  document.getElementById('subBtn').style.display = 'none';
+  document.getElementById('syncBtn').textContent = '▶ סנכרן כשהסרט מתחיל';
 }
 
 function renderSrcBtns(sources, activeUrl) {
