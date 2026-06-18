@@ -143,28 +143,30 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-se
       <div class="player-inner" id="playerInner">
         <div class="waiting" id="waiting"><span class="big">▶</span><span>בחר פרק ולחץ הפעל</span></div>
         <iframe id="frame" allowfullscreen allow="autoplay;fullscreen;picture-in-picture" style="display:none"></iframe>
-        <!-- Overlay controls - always on top -->
-        <div id="overlayBtns" style="display:none;position:absolute;top:10px;left:10px;z-index:10;display:flex;gap:6px">
-          <button onclick="goFullscreen()" title="מסך מלא" style="background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:.8rem;backdrop-filter:blur(4px)">⛶ מסך מלא</button>
+        <!-- Subtitle text overlay ON the video -->
+        <div id="subOverlay" style="display:none;position:absolute;bottom:60px;left:8%;right:8%;z-index:9;text-align:center;pointer-events:none">
+          <div id="subText" style="color:#fff;font-size:1.25rem;font-weight:700;line-height:1.5;text-shadow:2px 2px 6px #000,0 0 12px #000;background:rgba(0,0,0,.55);padding:4px 14px;border-radius:6px;display:inline-block"></div>
+        </div>
+        <!-- Overlay controls -->
+        <div id="overlayBtns" style="position:absolute;top:10px;left:10px;z-index:10;display:none;gap:6px">
+          <button onclick="goFullscreen()" style="background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:.8rem;backdrop-filter:blur(4px)">⛶ מסך מלא</button>
           <button id="subBtn" onclick="loadSubtitles()" style="display:none;background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:.8rem;backdrop-filter:blur(4px)">💬 כתוביות</button>
+        </div>
+        <!-- Subtitle sync controls overlay (bottom-left of video) -->
+        <div id="subBar" style="display:none;position:absolute;bottom:0;left:0;right:0;z-index:10;background:rgba(0,0,0,.8);padding:6px 10px;backdrop-filter:blur(4px)">
+          <div style="display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap">
+            <button onclick="subOffset(-1000)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:pointer">◀◀ -1s</button>
+            <button onclick="subOffset(-200)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:pointer">◀ -0.2s</button>
+            <button id="syncBtn" onclick="startSubSync()" style="background:#e50914;border:none;color:#fff;border-radius:6px;padding:3px 12px;font-size:.78rem;cursor:pointer;font-weight:700">▶ סנכרן</button>
+            <button onclick="subOffset(200)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:pointer">+0.2s ▶</button>
+            <button onclick="subOffset(1000)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:pointer">+1s ▶▶</button>
+            <button onclick="stopSubs()" style="background:#333;border:none;color:#aaa;border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:pointer">✕</button>
+            <span id="subStatus" style="color:#aaa;font-size:.72rem"></span>
+          </div>
         </div>
       </div>
       <div class="player-toolbar">
         <div id="srcBtns" style="display:flex;gap:6px;align-items:center;flex:1;flex-wrap:wrap"></div>
-      </div>
-
-      <!-- Subtitle bar -->
-      <div id="subBar" style="display:none;background:#0d0d0d;border-top:1px solid #222;padding:10px 16px">
-        <div id="subText" style="color:#fff;text-align:center;font-size:1.05rem;min-height:26px;line-height:1.5;text-shadow:1px 1px 3px #000"></div>
-        <div style="display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap">
-          <button onclick="subOffset(-1000)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:4px 10px;font-size:.75rem;cursor:pointer">◀◀ -1s</button>
-          <button onclick="subOffset(-200)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:4px 10px;font-size:.75rem;cursor:pointer">◀ -0.2s</button>
-          <button id="syncBtn" onclick="startSubSync()" style="background:#e50914;border:none;color:#fff;border-radius:6px;padding:4px 14px;font-size:.8rem;cursor:pointer;font-weight:700">▶ סנכרן כשהסרט מתחיל</button>
-          <button onclick="subOffset(200)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:4px 10px;font-size:.75rem;cursor:pointer">+0.2s ▶</button>
-          <button onclick="subOffset(1000)" style="background:#222;border:1px solid #444;color:#ccc;border-radius:6px;padding:4px 10px;font-size:.75rem;cursor:pointer">+1s ▶▶</button>
-          <button onclick="stopSubs()" style="background:#333;border:none;color:#aaa;border-radius:6px;padding:4px 10px;font-size:.75rem;cursor:pointer">✕ סגור</button>
-        </div>
-        <div id="subStatus" style="color:#666;text-align:center;font-size:.75rem;margin-top:6px"></div>
       </div>
     </div>
 
@@ -403,14 +405,15 @@ async function loadSubtitles() {
     if (parsed?.error) throw new Error(parsed.error);
     subEntries = parseSRT(text);
     if (!subEntries.length) throw new Error('לא ניתן לפרסר כתוביות');
-    document.getElementById('subBar').style.display = 'block';
-    document.getElementById('subStatus').textContent = `נטענו ${subEntries.length} כתוביות — לחץ סנכרן כשהסרט מתחיל`;
+    document.getElementById('subBar').style.display = 'flex';
+    document.getElementById('subOverlay').style.display = 'block';
+    document.getElementById('subStatus').textContent = `נטענו ${subEntries.length} — לחץ סנכרן`;
     btn.textContent = '✅ כתוביות טעונות';
   } catch(e) {
     console.error('[StreamIL subtitles]', e);
-    document.getElementById('subBar').style.display = 'block';
-    document.getElementById('subStatus').textContent = '❌ ' + e.message;
+    document.getElementById('subStatus').textContent = '';
     btn.textContent = '💬 כתוביות';
+    alert('כתוביות: ' + e.message);
   }
   btn.disabled = false;
 }
@@ -425,7 +428,7 @@ function startSubSync() {
     document.getElementById('subText').innerHTML = entry ? entry.text.replace(/\n/g,'<br>') : '';
   }, 100);
   document.getElementById('syncBtn').textContent = '🔄 מסונכרן';
-  document.getElementById('subStatus').textContent = 'כתוביות פועלות';
+  document.getElementById('subStatus').textContent = 'פועל';
 }
 
 function subOffset(ms) { subDrift += ms; }
@@ -434,9 +437,10 @@ function stopSubs() {
   if (subTimer) { clearInterval(subTimer); subTimer = null; }
   subEntries = []; subStart = null; subDrift = 0;
   document.getElementById('subBar').style.display = 'none';
+  document.getElementById('subOverlay').style.display = 'none';
   document.getElementById('subText').textContent = '';
   document.getElementById('subBtn').style.display = 'none';
-  document.getElementById('syncBtn').textContent = '▶ סנכרן כשהסרט מתחיל';
+  document.getElementById('syncBtn').textContent = '▶ סנכרן';
 }
 
 function renderSrcBtns(sources, activeUrl) {
