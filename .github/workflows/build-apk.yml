@@ -1,0 +1,114 @@
+name: Build StreamIL APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y imagemagick librsvg2-bin
+          npm install -g @bubblewrap/cli
+
+      - name: Generate PNG icons
+        run: |
+          rsvg-convert -w 192 -h 192 icons/icon.svg -o icons/icon-192.png
+          rsvg-convert -w 512 -h 512 icons/icon.svg -o icons/icon-512.png
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Generate keystore
+        run: |
+          keytool -genkey -v -keystore streamil.keystore \
+            -alias streamil -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=StreamIL,OU=App,O=StreamIL,L=TelAviv,S=IL,C=IL" \
+            -storepass streamil2024 -keypass streamil2024 -noprompt
+
+      - name: Create bubblewrap config
+        run: |
+          cat > twa-manifest.json << 'EOF'
+          {
+            "packageId": "com.streamil.app",
+            "host": "yair681.github.io",
+            "name": "StreamIL",
+            "launcherName": "StreamIL",
+            "display": "standalone",
+            "orientation": "portrait",
+            "themeColor": "#e50914",
+            "navigationColor": "#e50914",
+            "navigationColorDark": "#0a0a0a",
+            "backgroundColor": "#0a0a0a",
+            "enableNotifications": false,
+            "startUrl": "/streamil/",
+            "iconUrl": "https://yair681.github.io/streamil/icons/icon-512.png",
+            "splashScreenFadeOutDuration": 300,
+            "signingKey": {
+              "path": "../streamil.keystore",
+              "alias": "streamil"
+            },
+            "appVersionCode": 1,
+            "appVersionName": "1.0.0",
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://yair681.github.io/streamil/manifest.json",
+            "fallbackType": "customtabs",
+            "features": {},
+            "alphaDependencies": { "enabled": false },
+            "enableSiteSettingsShortcut": true,
+            "isChromeOSOnly": false,
+            "isMetaQuest": false,
+            "fullScopeUrl": "https://yair681.github.io/streamil/"
+          }
+          EOF
+
+      - name: Init Bubblewrap
+        run: |
+          mkdir twa && cd twa
+          bubblewrap init --manifest https://yair681.github.io/streamil/manifest.json \
+            --directory . || true
+        continue-on-error: true
+
+      - name: Build APK with Gradle
+        run: |
+          cd twa
+          echo "STORE_PASSWORD=streamil2024" >> local.properties
+          echo "KEY_PASSWORD=streamil2024" >> local.properties
+          echo "KEY_ALIAS=streamil" >> local.properties
+          echo "STORE_FILE=../streamil.keystore" >> local.properties
+          bubblewrap build --skipPwaValidation || ./gradlew assembleRelease
+
+      - name: Find and upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: StreamIL-APK
+          path: |
+            twa/**/*.apk
+            twa/app/build/outputs/apk/**/*.apk
+          if-no-files-found: warn
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: StreamIL v1.0.${{ github.run_number }}
+          files: twa/**/*.apk
+          body: |
+            ## StreamIL APK
+            הורד והתקן על האנדרואיד שלך.
+            אפשר גישה מ"מקורות לא ידועים" בהגדרות.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
