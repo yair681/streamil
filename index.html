@@ -395,8 +395,9 @@ async function loadSubtitles() {
   let url = `${BOT_URL}/subtitles?tmdb_id=${cur.id}&type=${type}`;
   if (type === 'tv') url += `&season=${season}&ep=${ep}`;
   try {
-    const r = await fetch(url);
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
     const text = await r.text();
+    console.log('[StreamIL subtitles] response:', text.slice(0, 200));
     let parsed;
     try { parsed = JSON.parse(text); } catch(e) { parsed = null; }
     if (parsed?.error) throw new Error(parsed.error);
@@ -406,8 +407,10 @@ async function loadSubtitles() {
     document.getElementById('subStatus').textContent = `נטענו ${subEntries.length} כתוביות — לחץ סנכרן כשהסרט מתחיל`;
     btn.textContent = '✅ כתוביות טעונות';
   } catch(e) {
+    console.error('[StreamIL subtitles]', e);
+    document.getElementById('subBar').style.display = 'block';
     document.getElementById('subStatus').textContent = '❌ ' + e.message;
-    btn.textContent = '💬 כתוביות עברית';
+    btn.textContent = '💬 כתוביות';
   }
   btn.disabled = false;
 }
